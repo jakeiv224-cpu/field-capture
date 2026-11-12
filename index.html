@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Field Capture</title>
+<meta name="theme-color" content="#10202b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Field Capture">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<!-- Field Capture. Copyright (c) 2026. All rights reserved. Not open source: no licence to copy, change or redistribute is given. -->
+<style>
+/* Layout: one column for a phone held in one hand. Labels on top, the photo list in the middle, the one big button pinned at the thumb. */
+:root{
+  --bg:#f3f6f7; --panel:#ffffff; --ink:#10202b; --soft:#506472; --line:#cfd9de;
+  --yellow:#f5c400; --on-yellow:#1a1500;            /* single-mode jacket yellow: the one primary action */
+  --aqua:#087f86; --aqua-bg:#dff3f3;                 /* multimode aqua: "located" */
+  --warn:#a34a00; --warn-bg:#fdebd8; --bad:#b3261e; --bad-bg:#fbe4e2;
+  --tap:56px; --r:12px;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0c161d; --panel:#14232d; --ink:#eaf1f4; --soft:#9fb2bd; --line:#2a3d49;
+  --aqua:#5fd3d6; --aqua-bg:#0f3238; --warn:#ffb877; --warn-bg:#3a2410; --bad:#ff9a92; --bad-bg:#3d1a18;
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.4 var(--font);-webkit-text-size-adjust:100%;
+  padding:env(safe-area-inset-top,0) max(16px,env(safe-area-inset-right,0px)) calc(var(--tap) + 44px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+[hidden]{display:none!important}
+main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-block:14px 2px}
+h1{font-size:20px;margin:0;letter-spacing:-.01em}
+h2{font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;color:var(--soft);font-weight:700}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+label{display:block;font-size:13px;font-weight:600;color:var(--soft);margin-bottom:4px}
+input[type=text]{width:100%;min-height:48px;padding:10px 12px;font:inherit;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:10px}
+input[type=text]:focus,button:focus-visible,summary:focus-visible{outline:3px solid var(--aqua);outline-offset:2px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stack{display:flex;flex-direction:column;gap:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:6px 12px;border-radius:999px;font-size:13px;font-weight:700;border:1.5px solid transparent;background:var(--warn-bg);color:var(--warn);cursor:pointer;font-family:inherit}
+.chip.ok{background:var(--aqua-bg);color:var(--aqua)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}
+.kinds{display:flex;flex-wrap:wrap;gap:8px}
+.kinds button{min-height:44px;padding:8px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.kinds button[aria-pressed=true]{background:var(--ink);color:var(--panel);border-color:var(--ink);font-weight:700}
+.btn{min-height:var(--tap);width:100%;border-radius:var(--r);border:1.5px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;font-weight:700;font-size:16px;cursor:pointer;padding:10px 14px}
+.btn.primary{background:var(--yellow);color:var(--on-yellow);border-color:var(--yellow)}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:default}
+.bar{position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);z-index:5;
+  padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.bar .in{max-width:560px;margin:0 auto;display:grid;grid-template-columns:1fr auto;gap:10px}
+.bar .btn.primary{font-size:18px}
+.bar .lib{width:auto;white-space:nowrap;font-size:14px}
+.sub{font-size:13px;color:var(--soft);margin:6px 0 0}
+#shotLabel{display:block;font-size:12px;font-weight:600;opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw;margin:0 auto}
+ul.photos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+ul.photos li{display:grid;grid-template-columns:64px 1fr;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+ul.photos img,.noimg{width:64px;height:64px;object-fit:cover;border-radius:6px;background:var(--line);display:block}
+.pm{min-width:0}
+.pm b{display:block;font-size:14px;overflow-wrap:anywhere}
+.pm span{display:block;font-size:12px;color:var(--soft);font-family:var(--mono);font-variant-numeric:tabular-nums}
+.tag{display:inline-block!important;font-family:var(--font)!important;font-weight:700;padding:1px 7px;border-radius:999px;margin-top:3px}
+.tag.ok{background:var(--aqua-bg);color:var(--aqua)} .tag.none{background:var(--warn-bg);color:var(--warn)} .tag.sent{background:var(--line);color:var(--soft)}
+.pa{grid-column:1/-1;display:flex;gap:8px}
+.pa .btn{min-height:44px;font-size:14px}
+.empty{border:1.5px dashed var(--line);border-radius:var(--r);padding:18px;color:var(--soft);font-size:14px}
+.empty b{color:var(--ink);display:block;margin-bottom:4px}
+#msg{position:fixed;left:16px;right:16px;bottom:calc(var(--tap) + 34px + env(safe-area-inset-bottom,0px));max-width:528px;margin:0 auto;background:var(--ink);color:var(--panel);padding:12px 14px;border-radius:10px;font-size:14px;font-weight:600;z-index:9}
+details summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+details p{font-size:14px;color:var(--soft);margin:6px 0}
+.count{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:13px;color:var(--soft)}
+@media (max-width:360px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Field Capture</h1>
+    <button class="chip" id="loc" type="button">Location off — tap to turn on</button>
+  </header>
+
+  <section class="card stack" aria-label="Job">
+    <div class="row">
+      <div><label for="job">Job</label><input type="text" id="job" autocomplete="off" placeholder="Hall A phase 2" maxlength="60"></div>
+      <div><label for="crew">Taken by</label><input type="text" id="crew" autocomplete="off" placeholder="R. Diaz, Lightpath" maxlength="60"></div>
+    </div>
+  </section>
+
+  <section class="card stack" aria-label="What the next photo shows">
+    <h2>The next photo shows</h2>
+    <div class="row">
+      <div><label for="where">Where</label><input type="text" id="where" list="recent" autocomplete="off" placeholder="MDF-1 to IDF-3" maxlength="60"><datalist id="recent"></datalist></div>
+      <div><label for="fiber">Fiber / tray</label><input type="text" id="fiber" autocomplete="off" placeholder="Tray 4, F013-024" maxlength="40"></div>
+    </div>
+    <div class="kinds" id="kinds" role="group" aria-label="Kind of photo"></div>
+    <div><label for="note">Note (optional)</label><input type="text" id="note" autocomplete="off" placeholder="After re-splice" maxlength="120"></div>
+  </section>
+
+  <section aria-label="Photos on this phone">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><h2>On this phone</h2><span class="count" id="count"></span></div>
+    <div class="empty" id="empty"><b>No photos yet.</b>Fill in where you are, then tap Take photo. Each photo is saved here with the time and, when location is on, the place — even with no signal. Nothing leaves this phone until you send it.</div>
+    <ul class="photos" id="list"></ul>
+  </section>
+
+  <section class="card stack" id="sendCard" hidden aria-label="Send">
+    <h2>Send to the office</h2>
+    <button class="btn primary" id="send" type="button">Send photos…</button>
+    <button class="btn" id="save" type="button">Save the zip to this phone</button>
+    <p class="sub" id="sendNote">One zip with every photo, a list of where and when each was taken, and a map file. Send it to whoever builds the close-out pack.</p>
+    <button class="btn danger" id="clear" type="button" hidden>Remove sent photos from this phone</button>
+  </section>
+
+  <details class="card">
+    <summary>How this works, and what it does not do</summary>
+    <p>The place comes from this phone's location at the moment you take the photo, and the time from this phone's clock. Both are written into the photo and into the list that travels with it, with how accurate the location fix was.</p>
+    <p>A photo picked from your library never gets today's location: it keeps whatever place it already carries, or none.</p>
+    <p>If a photo already carries a place from the camera, the file is kept byte for byte. Otherwise the place is added to the photo's details; the picture itself is not re-compressed. The list records which happened, with a fingerprint of the file before and after.</p>
+    <p>Photos stay in this browser on this phone. Clearing the browser's site data removes them, so send often.</p>
+    <p class="count" id="ver"></p>
+  </details>
+</main>
+
+<div class="bar"><div class="in">
+  <button class="btn primary" id="shoot" type="button">Take photo<span id="shotLabel"></span></button>
+  <button class="btn lib" id="pick" type="button">From library</button>
+</div></div>
+<input type="file" id="cam" accept="image/*" capture="environment" hidden>
+<input type="file" id="lib" accept="image/*" multiple hidden>
+<div id="msg" role="status" hidden></div>
+
+<script>
+'use strict';
+const VERSION = '1.0.0', FORMAT = 'FIELD-CAPTURE-1';
+const FRESH_MS = 3 * 60e3, FIX_MAX_AGE_MS = 2 * 60e3, MAX_ZIP = 2000 * 1024 * 1024;
+const KINDS = ['Splice tray', 'Closure', 'Connector end face', 'Label', 'Panel / rack', 'Route / handhole', 'Damage', 'Other'];
+
+/* ---------- small helpers (no page needed: these are also run by the tests) ---------- */
+const p2 = n => String(n).padStart(2, '0');
+const fmtLocal = d => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+const fmtUtc = d => `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())} ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}:${p2(d.getUTCSeconds())}`;
+const tzOffset = d => { const m = -d.getTimezoneOffset(), a = Math.abs(m); return (m < 0 ? '-' : '+') + p2(Math.floor(a / 60)) + ':' + p2(a % 60); };
+function parseExifLocal(s) {                       // '2026:11:12 09:41:07' -> Date in this phone's zone, or null
+  const m = /^(\d{4})[:\-](\d{2})[:\-](\d{2}) (\d{2}):(\d{2}):(\d{2})/.exec(s || '');
+  if (!m) return null;
+  const [y, mo, d, h, mi, se] = m.slice(1).map(Number);
+  if (y < 1990 || y > 2100 || mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || se > 60) return null;
+  return new Date(y, mo - 1, d, h, mi, se);
+}
+const slug = (s, n = 40) => String(s || '').normalize('NFKD').replace(/[^A-Za-z0-9._-]+/g, '-').replace(/-+/g, '-').replace(/^[-.]+|[-.]+$/g, '').slice(0, n);
+const xml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c])).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+const hex = u8 => Array.from(u8, b => b.toString(16).padStart(2, '0')).join('');
+async function sha256hex(u8) { return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', u8))); }
+const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+
+/* ---------- JPEG details: read what a photo says, and write a place and time into one ---------- */
+function jpegSegments(b) {                         // the header segments before the picture data, or null when not a JPEG
+  if (!b || b.length < 4 || b[0] !== 0xFF || b[1] !== 0xD8) return null;
+  const segs = []; let p = 2;
+  while (p + 4 <= b.length) {
+    if (b[p] !== 0xFF) return null;
+    const m = b[p + 1];
+    if (m === 0xFF) { p++; continue; }
+    if (m === 0xDA || m === 0xD9) break;
+    const size = (b[p + 2] << 8) | b[p + 3];
+    if (size < 2 || p + 2 + size > b.length) return null;
+    segs.push({ marker: m, start: p, end: p + 2 + size });
+    p += 2 + size;
+  }
+  return { segs };
+}
+const isExif = (b, s) => s.marker === 0xE1 && s.end - s.start >= 18 && b[s.start + 4] === 0x45 && b[s.start + 5] === 0x78 && b[s.start + 6] === 0x69 && b[s.start + 7] === 0x66 && b[s.start + 8] === 0 && b[s.start + 9] === 0;
+function readExif(b) {
+  const out = { has: false, orientation: null, make: '', model: '', dateTime: '', dateTimeOriginal: '', lat: null, lon: null };
+  const j = jpegSegments(b); if (!j) return out;
+  const s = j.segs.find(s => isExif(b, s)); if (!s) return out;
+  try {
+    const x = b.subarray(s.start + 10, s.end), dv = new DataView(x.buffer, x.byteOffset, x.byteLength);
+    const le = x[0] === 0x49 && x[1] === 0x49;
+    if (!le && !(x[0] === 0x4D && x[1] === 0x4D)) return out;
+    if (dv.getUint16(2, le) !== 42) return out;
+    const SIZE = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 9: 4, 10: 8 };
+    const ifd = off => { const m = new Map(); if (!off || off + 2 > x.length) return m; const n = Math.min(dv.getUint16(off, le), 200);
+      for (let i = 0; i < n; i++) { const q = off + 2 + i * 12; if (q + 12 > x.length) break; m.set(dv.getUint16(q, le), { t: dv.getUint16(q + 2, le), c: dv.getUint32(q + 4, le), p: q + 8 }); } return m; };
+    const val = e => { if (!e) return null; const sz = (SIZE[e.t] || 0) * e.c; if (!sz || e.c > 4096) return null;
+      const at = sz <= 4 ? e.p : dv.getUint32(e.p, le); if (at + sz > x.length) return null;
+      if (e.t === 2) { let t = ''; for (let i = 0; i < e.c; i++) { const ch = x[at + i]; if (!ch) break; t += String.fromCharCode(ch); } return t.trim(); }
+      if (e.t === 3) return Array.from({ length: e.c }, (_, i) => dv.getUint16(at + 2 * i, le));
+      if (e.t === 4) return Array.from({ length: e.c }, (_, i) => dv.getUint32(at + 4 * i, le));
+      if (e.t === 5) return Array.from({ length: e.c }, (_, i) => { const d = dv.getUint32(at + 8 * i + 4, le); return d ? dv.getUint32(at + 8 * i, le) / d : null; });
+      return null; };
+    const str = v => typeof v === 'string' ? v : '';
+    const d0 = ifd(dv.getUint32(4, le));
+    out.has = true;
+    const o = val(d0.get(0x0112)); if (Array.isArray(o) && o[0] >= 1 && o[0] <= 8) out.orientation = o[0];
+    out.make = str(val(d0.get(0x010F))).slice(0, 40); out.model = str(val(d0.get(0x0110))).slice(0, 40);
+    out.dateTime = str(val(d0.get(0x0132)));
+    const ep = val(d0.get(0x8769)), gp = val(d0.get(0x8825));
+    if (Array.isArray(ep)) { const ex = ifd(ep[0]); out.dateTimeOriginal = str(val(ex.get(0x9003))) || str(val(ex.get(0x9004))); }
+    if (Array.isArray(gp)) {
+      const g = ifd(gp[0]);
+      const deg = (v, ref, lim) => { if (!Array.isArray(v) || v.length !== 3 || v.some(n => n === null)) return null;
+        let d = v[0] + v[1] / 60 + v[2] / 3600; if (/^[SW]/i.test(str(ref))) d = -d; return d >= -lim && d <= lim ? d : null; };
+      const lat = deg(val(g.get(2)), val(g.get(1)), 90), lon = deg(val(g.get(4)), val(g.get(3)), 180);
+      if (lat !== null && lon !== null && !(lat === 0 && lon === 0)) { out.lat = lat; out.lon = lon; }
+    }
+  } catch (e) { /* unreadable details: treated as none */ }
+  return out;
+}
+function buildExif(o) {                            // a complete 'Exif' header segment (big-endian), small and self-contained
+  const A = s => { s = String(s).replace(/[^\x20-\x7E]/g, '?'); const u = new Uint8Array(s.length + 1); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return { t: 2, c: u.length, v: u }; };
+  const S = n => ({ t: 3, c: 1, v: Uint8Array.of(n >> 8, n & 255) });
+  const B = a => ({ t: 1, c: a.length, v: Uint8Array.from(a) });
+  const U = a => ({ t: 7, c: a.length, v: Uint8Array.from(a) });
+  const R = pairs => { const u = new Uint8Array(pairs.length * 8), dv = new DataView(u.buffer); pairs.forEach(([n, d], i) => { dv.setUint32(i * 8, n >>> 0); dv.setUint32(i * 8 + 4, d >>> 0); }); return { t: 5, c: pairs.length, v: u }; };
+  const P = () => ({ t: 4, c: 1, v: new Uint8Array(4) });
+  const d0 = new Map(), ex = new Map(), gp = new Map();
+  if (o.description) d0.set(0x010E, A(o.description.slice(0, 200)));
+  if (o.make) d0.set(0x010F, A(o.make)); if (o.model) d0.set(0x0110, A(o.model));
+  if (o.orientation) d0.set(0x0112, S(o.orientation));
+  d0.set(0x0131, A('Field Capture ' + VERSION));
+  if (o.dateTime) d0.set(0x0132, A(o.dateTime));
+  const pe = P(), pg = P(); d0.set(0x8769, pe);
+  ex.set(0x9000, U([0x30, 0x32, 0x33, 0x32]));
+  if (o.dateTime) ex.set(0x9003, A(o.dateTime));
+  if (o.offset) ex.set(0x9011, A(o.offset));
+  const g = o.gps;
+  if (g) {
+    d0.set(0x8825, pg);
+    const dms = v => { const t = Math.round(Math.abs(v) * 3600 * 10000), d = Math.floor(t / 36000000), r = t - d * 36000000, m = Math.floor(r / 600000); return R([[d, 1], [m, 1], [r - m * 600000, 10000]]); };
+    gp.set(0, B([2, 3, 0, 0]));
+    gp.set(1, A(g.lat < 0 ? 'S' : 'N')); gp.set(2, dms(g.lat));
+    gp.set(3, A(g.lon < 0 ? 'W' : 'E')); gp.set(4, dms(g.lon));
+    if (Number.isFinite(g.alt)) { gp.set(5, B([g.alt < 0 ? 1 : 0])); gp.set(6, R([[Math.round(Math.abs(g.alt) * 100), 100]])); }
+    const u = g.utc;
+    gp.set(7, R([[u.getUTCHours(), 1], [u.getUTCMinutes(), 1], [u.getUTCSeconds(), 1]]));
+    gp.set(0x12, A('WGS-84'));
+    gp.set(0x1D, A(`${u.getUTCFullYear()}:${p2(u.getUTCMonth() + 1)}:${p2(u.getUTCDate())}`));
+    if (Number.isFinite(g.acc) && g.acc >= 0) gp.set(0x1F, R([[Math.round(Math.min(g.acc, 4e6) * 100), 100]]));
+  }
+  const pad = n => n + (n & 1);
+  const size = m => 6 + 12 * m.size + [...m.values()].reduce((a, e) => a + (e.v.length > 4 ? pad(e.v.length) : 0), 0);
+  const o0 = 8, oE = o0 + size(d0), oG = oE + size(ex), total = oG + (g ? size(gp) : 0);
+  new DataView(pe.v.buffer).setUint32(0, oE); new DataView(pg.v.buffer).setUint32(0, oG);
+  const t = new Uint8Array(total), dv = new DataView(t.buffer);
+  t.set([0x4D, 0x4D, 0, 42, 0, 0, 0, 8]);
+  const put = (m, at) => { const tags = [...m.keys()].sort((a, b) => a - b); dv.setUint16(at, tags.length); let data = at + 6 + 12 * tags.length;
+    tags.forEach((tag, i) => { const e = m.get(tag), q = at + 2 + 12 * i; dv.setUint16(q, tag); dv.setUint16(q + 2, e.t); dv.setUint32(q + 4, e.c);
+      if (e.v.length <= 4) t.set(e.v, q + 8); else { dv.setUint32(q + 8, data); t.set(e.v, data); data += pad(e.v.length); } }); };
+  put(d0, o0); put(ex, oE); if (g) put(gp, oG);
+  const seg = new Uint8Array(10 + total); seg.set([0xFF, 0xE1, (total + 8) >> 8, (total + 8) & 255, 0x45, 0x78, 0x69, 0x66, 0, 0]); seg.set(t, 10);
+  return seg;
+}
+function withExif(b, seg) {                        // the same photo with its details header replaced; picture data untouched
+  const j = jpegSegments(b); if (!j) return null;
+  const keep = j.segs.filter(s => !isExif(b, s));
+  let lead = 0; while (lead < keep.length && keep[lead].marker === 0xE0) lead++;      // a JFIF header stays first
+  const tailStart = j.segs.length ? j.segs[j.segs.length - 1].end : 2;
+  const parts = [b.subarray(0, 2), ...keep.slice(0, lead).map(s => b.subarray(s.start, s.end)), seg, ...keep.slice(lead).map(s => b.subarray(s.start, s.end)), b.subarray(tailStart)];
+  const out = new Uint8Array(parts.reduce((a, p) => a + p.length, 0)); let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+}
+/* The one decision that matters: when may this phone's location be written into a photo?
+   Only for a photo taken just now through Take photo, with a recent fix. Never for a library photo. */
+function processPhoto(bytes, ctx) {
+  if (!jpegSegments(bytes)) return { error: 'not_jpeg' };
+  const ex = readExif(bytes), now = ctx.now, L = ctx.label || {};
+  const own = parseExifLocal(ex.dateTimeOriginal) || parseExifLocal(ex.dateTime);
+  const taken = own || (ctx.fileTime ? new Date(ctx.fileTime) : now);
+  const fresh = !!ctx.fromCamera && Math.abs(now - taken) <= FRESH_MS;
+  const fix = ctx.fix && Number.isFinite(ctx.fix.lat) && Number.isFinite(ctx.fix.lon) && Math.abs(ctx.fix.lat) <= 90 && Math.abs(ctx.fix.lon) <= 180 && (now - ctx.fix.time) <= FIX_MAX_AGE_MS && (now - ctx.fix.time) > -60e3 ? ctx.fix : null;
+  const meta = { taken_local: fmtLocal(taken), taken_utc: fresh || !own ? fmtUtc(taken) : '', time_source: own ? 'photo' : (ctx.fileTime ? 'file' : 'phone clock'),
+    lat: null, lon: null, accuracy_m: null, alt_m: null, location_source: 'none', location_note: '', changed: ctx.converted ? 'converted to JPEG' : 'none',
+    where: L.where || '', fiber: L.fiber || '', kind: L.kind || '', note: L.note || '', camera: [ex.make, ex.model].filter(Boolean).join(' ') };
+  let out = bytes;
+  if (ex.lat !== null) { meta.lat = +ex.lat.toFixed(7); meta.lon = +ex.lon.toFixed(7); meta.location_source = 'photo'; }
+  else if (fresh && fix) {
+    const desc = [L.where, L.fiber, L.kind, L.note].filter(Boolean).join(' | ');
+    out = withExif(bytes, buildExif({ description: desc, make: ex.make, model: ex.model, orientation: ex.orientation, dateTime: ex.dateTimeOriginal && own ? ex.dateTimeOriginal.slice(0, 19).replace(/-/g, ':') : fmtLocal(taken).replace(/-/g, ':'),
+      offset: tzOffset(taken), gps: { lat: fix.lat, lon: fix.lon, alt: fix.alt, acc: fix.acc, utc: new Date(fix.time) } }));
+    meta.lat = +fix.lat.toFixed(7); meta.lon = +fix.lon.toFixed(7); meta.accuracy_m = Number.isFinite(fix.acc) ? Math.round(fix.acc) : null; meta.alt_m = Number.isFinite(fix.alt) ? Math.round(fix.alt) : null;
+    meta.location_source = 'phone'; meta.fix_age_s = Math.max(0, Math.round((now - fix.time) / 1000));
+    meta.changed = ctx.converted ? 'converted to JPEG, location added' : 'location added';
+  } else meta.location_note = !ctx.fromCamera ? 'Picked from the library: today\'s location was not added' : !fresh ? 'Not taken just now: today\'s location was not added' : 'The phone had no location fix';
+  return { bytes: out, meta };
+}
+function photoName(job, meta, seq, taken) {
+  const t = taken.replace(/[-:]/g, '').replace(' ', '-');
+  return [slug(job, 30), slug(meta.where, 30), slug(meta.fiber, 20), slug(meta.kind, 20), t, String(seq).padStart(3, '0')].filter(Boolean).join('_') + '.jpg';
+}
+
+/* ---------- the zip that travels: photos + capture.json + photos.kml + READ ME.txt ---------- */
+function captureJson(job, crew, rows, now, device) {
+  return JSON.stringify({ format: FORMAT, app_version: VERSION, job, crew, made_utc: fmtUtc(now), device: String(device || '').slice(0, 200),
+    photos: rows.map(r => Object.assign({ name: r.name, sha256: r.sha256, bytes: r.size, original_sha256: r.original_sha256 }, r.meta)) }, null, 1);
+}
+function captureKml(job, rows) {
+  const pins = rows.filter(r => r.meta.lat !== null).map(r => `<Placemark><name>${xml(r.name)}</name><description>${xml([r.meta.where, r.meta.fiber, r.meta.kind, r.meta.note, r.meta.taken_local].filter(Boolean).join(' | '))}</description>` +
+    (r.meta.taken_utc ? `<TimeStamp><when>${xml(r.meta.taken_utc.replace(' ', 'T'))}Z</when></TimeStamp>` : '') + `<Point><coordinates>${r.meta.lon.toFixed(7)},${r.meta.lat.toFixed(7)},0</coordinates></Point></Placemark>`).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${xml(job || 'Field photos')}</name>${pins}</Document></kml>\n`;
+}
+function readMe(job, crew, rows) {
+  const loc = rows.filter(r => r.meta.lat !== null).length;
+  return `${job || 'Field photos'}\r\nTaken by: ${crew || '(not given)'}\r\n${rows.length} photo(s), ${loc} with a location.\r\n\r\n` +
+    `capture.json lists every photo: where the crew said it was taken, the time, the place, how accurate the\r\nlocation fix was, and a SHA-256 fingerprint of the file. photos.kml opens in Google Earth and GIS tools.\r\n\r\n` +
+    `Where "location_source" says "phone", the place is this phone's own location at the moment the photo was\r\ntaken, written into the photo by Field Capture. Where it says "photo", the camera wrote it and the file is\r\nunchanged. Times are the phone's clock. None of this is proof by itself: a phone's clock and location can be\r\nwrong or changed. Sealing these files in an OPM Puller pack shows they have not changed since.\r\n`;
+}
+function makeZip(entries, now) {                   // stored, not compressed (photos do not shrink). entries: {name, data: Blob|Uint8Array, crc, size}
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  const time = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1)) & 0xFFFF, date = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xFFFF;
+  for (const e of entries) {
+    const n = enc.encode(e.name), h = new Uint8Array(30 + n.length), dv = new DataView(h.buffer);
+    dv.setUint32(0, 0x04034b50, true); dv.setUint16(4, 20, true); dv.setUint16(6, 0x0800, true); dv.setUint16(8, 0, true); dv.setUint16(10, time, true); dv.setUint16(12, date, true);
+    dv.setUint32(14, e.crc, true); dv.setUint32(18, e.size, true); dv.setUint32(22, e.size, true); dv.setUint16(26, n.length, true); h.set(n, 30);
+    const c = new Uint8Array(46 + n.length), cv = new DataView(c.buffer);
+    cv.setUint32(0, 0x02014b50, true); cv.setUint16(4, 20, true); cv.setUint16(6, 20, true); cv.setUint16(8, 0x0800, true); cv.setUint16(12, time, true); cv.setUint16(14, date, true);
+    cv.setUint32(16, e.crc, true); cv.setUint32(20, e.size, true); cv.setUint32(24, e.size, true); cv.setUint16(28, n.length, true); cv.setUint32(42, off, true); c.set(n, 46);
+    parts.push(h, e.data); central.push(c); off += h.length + e.size;
+  }
+  const cs = central.reduce((a, c) => a + c.length, 0), end = new Uint8Array(22), ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true); ev.setUint16(8, entries.length, true); ev.setUint16(10, entries.length, true); ev.setUint32(12, cs, true); ev.setUint32(16, off, true);
+  return new Blob([...parts, ...central, end], { type: 'application/zip' });
+}
+function buildCapture(job, crew, rows, now, device) {            // rows: {name, data, crc, size, sha256, original_sha256, meta}
+  const enc = new TextEncoder(), text = (name, s) => { const u = enc.encode(s); return { name, data: u, crc: crc32(u), size: u.length }; };
+  const entries = rows.map(r => ({ name: r.name, data: r.data, crc: r.crc, size: r.size }));
+  entries.push(text('capture.json', captureJson(job, crew, rows, now, device)), text('photos.kml', captureKml(job, rows)), text('READ ME.txt', readMe(job, crew, rows)));
+  return makeZip(entries, now);
+}
+
+if (typeof module !== 'undefined') module.exports = { VERSION, FORMAT, crc32, sha256hex, jpegSegments, readExif, buildExif, withExif, processPhoto, photoName, buildCapture, slug, parseExifLocal, fmtLocal, fmtUtc };
+
+/* ---------- the page ---------- */
+if (typeof document !== 'undefined') (() => {
+  const $ = id => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+  const ls = { get: (k, d) => { try { const v = localStorage.getItem('fc.' + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem('fc.' + k, JSON.stringify(v)); } catch (e) {} } };
+  let msgT; const say = (t, ms = 4000) => { const m = $('msg'); m.textContent = t; m.hidden = false; clearTimeout(msgT); msgT = setTimeout(() => m.hidden = true, ms); };
+
+  /* photos are kept in the browser's own database on this phone; if that is unavailable they live only until the page closes */
+  let db = null, mem = [], memId = 1;
+  const openDb = () => new Promise(res => { try { const r = indexedDB.open('field-capture', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
+    r.onsuccess = () => res(r.result); r.onerror = () => res(null); r.onblocked = () => res(null); } catch (e) { res(null); } });
+  const tx = (mode, fn) => new Promise((res, rej) => { const t = db.transaction('photos', mode), rq = fn(t.objectStore('photos')); t.oncomplete = () => res(rq && rq.result); t.onerror = t.onabort = () => rej(t.error); });
+  const store = {
+    all: async () => db ? await tx('readonly', s => s.getAll()) : mem.slice(),
+    add: async r => { if (db) r.id = await tx('readwrite', s => s.add(r)); else { r.id = memId++; mem.push(r); } return r; },
+    put: async r => { if (db) await tx('readwrite', s => s.put(r)); },
+    del: async id => { if (db) await tx('readwrite', s => s.delete(id)); else mem = mem.filter(r => r.id !== id); },
+  };
+
+  /* location: asked for once, by a tap; after that it runs whenever the page is open */
+  let FIX = null, watching = false;
+  function paintLoc(state) {
+    const c = $('loc'), age = FIX ? Date.now() - FIX.time : 1e12;
+    if (state === 'denied') { c.className = 'chip bad'; c.textContent = 'Location blocked — allow it in settings'; }
+    else if (state === 'unsupported') { c.className = 'chip bad'; c.textContent = 'This browser has no location'; }
+    else if (FIX && age <= FIX_MAX_AGE_MS) { c.className = 'chip ok'; c.textContent = 'Location on · ±' + (FIX.acc >= 1000 ? (FIX.acc / 1000).toFixed(1) + ' km' : Math.round(FIX.acc) + ' m'); }
+    else if (watching) { c.className = 'chip'; c.textContent = 'Finding location…'; }
+    else { c.className = 'chip'; c.textContent = 'Location off — tap to turn on'; }
+  }
+  function startLoc() {
+    if (!('geolocation' in navigator)) return paintLoc('unsupported');
+    if (watching) return; watching = true; paintLoc();
+    navigator.geolocation.watchPosition(p => { FIX = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy, alt: p.coords.altitude === null ? NaN : p.coords.altitude, time: p.timestamp || Date.now() }; ls.set('loc', 1); paintLoc(); },
+      e => { if (e.code === 1) { watching = false; ls.set('loc', 0); paintLoc('denied'); } else paintLoc(); }, { enableHighAccuracy: true, maximumAge: 10000, timeout: 30000 });
+  }
+  $('loc').onclick = startLoc; setInterval(() => { if (watching) paintLoc(); }, 15000);
+
+  /* labels */
+  let kind = ls.get('kind', KINDS[0]);
+  KINDS.forEach(k => { const b = el('button', '', k); b.type = 'button'; b.setAttribute('aria-pressed', String(k === kind));
+    b.onclick = () => { kind = k; ls.set('kind', k); [...$('kinds').children].forEach(x => x.setAttribute('aria-pressed', String(x === b))); paintShot(); }; $('kinds').append(b); });
+  for (const id of ['job', 'crew', 'where', 'fiber', 'note']) { $(id).value = ls.get(id, ''); $(id).addEventListener('input', () => { ls.set(id, $(id).value); paintShot(); }); }
+  const label = () => ({ where: $('where').value.trim(), fiber: $('fiber').value.trim(), kind, note: $('note').value.trim() });
+  const paintShot = () => { const L = label(); $('shotLabel').textContent = [L.where, L.fiber, L.kind].filter(Boolean).join(' · '); };
+  function paintRecent() { const d = $('recent'); d.replaceChildren(...ls.get('recent', []).map(v => { const o = el('option'); o.value = v; return o; })); }
+  function remember(w) { if (!w) return; const r = ls.get('recent', []).filter(v => v !== w); r.unshift(w); ls.set('recent', r.slice(0, 12)); paintRecent(); }
+
+  /* taking photos in */
+  async function toJpeg(file) {
+    const bmp = await createImageBitmap(file), c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; c.getContext('2d').drawImage(bmp, 0, 0);
+    const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.92)); return new Uint8Array(await blob.arrayBuffer());
+  }
+  async function thumb(blob) {
+    try { const bmp = await createImageBitmap(blob, { resizeWidth: 160, resizeQuality: 'low' }), c = document.createElement('canvas'), s = Math.min(bmp.width, bmp.height); c.width = c.height = 128;
+      c.getContext('2d').drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, 128, 128); return c.toDataURL('image/jpeg', 0.6); } catch (e) { return ''; }
+  }
+  async function addFiles(files, fromCamera) {
+    let added = 0, noPlace = 0;
+    for (const f of files) {
+      try {
+        const original = new Uint8Array(await f.arrayBuffer()); let bytes = original, converted = false;
+        if (!jpegSegments(bytes)) { bytes = await toJpeg(f); converted = true; }
+        const r = processPhoto(bytes, { now: new Date(), fix: FIX, fromCamera, fileTime: f.lastModified, label: label(), converted });
+        if (r.error) throw new Error(r.error);
+        const seq = ls.get('seq', 0) + 1; ls.set('seq', seq);
+        const blob = new Blob([r.bytes], { type: 'image/jpeg' });
+        await store.add({ name: photoName($('job').value.trim(), r.meta, seq, r.meta.taken_local), blob, size: r.bytes.length, crc: crc32(r.bytes), sha256: await sha256hex(r.bytes), original_sha256: await sha256hex(original), meta: r.meta, thumb: await thumb(blob), sent: '' });
+        added++; if (r.meta.lat === null) noPlace++;
+      } catch (e) { say('One file could not be read as a photo and was skipped.'); }
+    }
+    if (added) { remember(label().where); if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+      say(added === 1 ? (noPlace ? 'Saved. This photo has no location.' : 'Saved, with time and place.') : `${added} photos saved, ${added - noPlace} with a place.`); }
+    await render();
+  }
+  $('shoot').onclick = () => { if (!watching && ls.get('loc', null) === null) startLoc(); $('cam').click(); };
+  $('pick').onclick = () => $('lib').click();
+  $('cam').onchange = e => { const f = [...e.target.files]; e.target.value = ''; addFiles(f, true); };
+  $('lib').onchange = e => { const f = [...e.target.files]; e.target.value = ''; addFiles(f, false); };
+
+  /* the list */
+  let open = null, armed = null;
+  async function render() {
+    const rows = (await store.all()).sort((a, b) => b.id - a.id), list = $('list');
+    $('empty').hidden = rows.length > 0; $('sendCard').hidden = rows.length === 0;
+    const mb = rows.reduce((a, r) => a + r.size, 0) / 1048576, unsent = rows.filter(r => !r.sent).length;
+    $('count').textContent = rows.length ? `${rows.length} photo${rows.length === 1 ? '' : 's'} · ${mb < 1 ? Math.max(1, Math.round(mb * 1024)) + ' KB' : mb.toFixed(1) + ' MB'}` : '';
+    $('send').textContent = unsent && unsent < rows.length ? `Send ${unsent} new photo${unsent === 1 ? '' : 's'}…` : `Send ${rows.length} photo${rows.length === 1 ? '' : 's'}…`;
+    $('clear').hidden = !rows.some(r => r.sent);
+    list.replaceChildren(...rows.map(r => {
+      const li = el('li'), m = r.meta;
+      const im = r.thumb ? Object.assign(el('img'), { src: r.thumb, alt: '' }) : el('div', 'noimg');
+      const pm = el('div', 'pm');
+      pm.append(el('b', '', [m.where, m.fiber, m.kind].filter(Boolean).join(' · ') || r.name), el('span', '', m.taken_local));
+      pm.append(m.lat !== null ? el('span', 'tag ok', m.accuracy_m !== null ? `Located ±${m.accuracy_m} m` : 'Located by the camera') : el('span', 'tag none', 'No location'));
+      if (r.sent) pm.append(document.createTextNode(' '), el('span', 'tag sent', 'Sent'));
+      li.append(im, pm); li.onclick = () => { open = open === r.id ? null : r.id; armed = null; render(); };
+      if (open === r.id) {
+        const d = el('div', 'pm'); d.style.gridColumn = '1/-1';
+        d.append(el('span', '', r.name), el('span', '', m.lat !== null ? `${m.lat.toFixed(6)}, ${m.lon.toFixed(6)}` : m.location_note), el('span', '', m.changed === 'none' ? 'File unchanged' : 'File: ' + m.changed));
+        if (m.note) d.append(el('span', '', 'Note: ' + m.note));
+        const pa = el('div', 'pa'), del = el('button', 'btn danger', armed === r.id ? 'Tap again to remove' : 'Remove this photo'); del.type = 'button';
+        del.onclick = async ev => { ev.stopPropagation(); if (armed !== r.id) { armed = r.id; return render(); } await store.del(r.id); armed = open = null; render(); };
+        pa.append(del); li.append(d, pa);
+      }
+      return li;
+    }));
+  }
+
+  /* sending */
+  async function zipNow(onlyNew) {
+    let rows = (await store.all()).sort((a, b) => a.id - b.id);
+    if (onlyNew && rows.some(r => !r.sent) && rows.some(r => r.sent)) rows = rows.filter(r => !r.sent);
+    if (!rows.length) return null;
+    if (rows.reduce((a, r) => a + r.size, 0) > MAX_ZIP) { say('That is more than 2 GB of photos. Remove some, or send in parts.', 7000); return null; }
+    const now = new Date(), job = $('job').value.trim(), used = new Set();
+    const data = rows.map(r => { let n = r.name; for (let i = 2; used.has(n.toLowerCase()); i++) n = r.name.replace(/\.jpg$/, `-${i}.jpg`); used.add(n.toLowerCase());
+      return { name: n, data: r.blob, crc: r.crc, size: r.size, sha256: r.sha256, original_sha256: r.original_sha256, meta: r.meta }; });
+    const blob = buildCapture(job, $('crew').value.trim(), data, now, navigator.userAgent);
+    return { blob, rows, name: `${slug(job, 40) || 'field'}-photos-${fmtLocal(now).replace(/[-:]/g, '').replace(' ', '-')}.zip`, now };
+  }
+  const markSent = async z => { for (const r of z.rows) { r.sent = fmtLocal(z.now); await store.put(r); } render(); };
+  function download(z) { const a = el('a'); a.href = URL.createObjectURL(z.blob); a.download = z.name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000); }
+  $('send').onclick = async () => {
+    if (!$('job').value.trim()) { $('job').focus(); return say('Name the job first, so the office knows what these are.'); }
+    const z = await zipNow(true); if (!z) return;
+    const file = new File([z.blob], z.name, { type: 'application/zip' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: z.name }); await markSent(z); say('Handed to the app you chose. Check that it went.'); }
+      catch (e) { if (e && e.name !== 'AbortError') { download(z); await markSent(z); say('Sharing is not available here, so the zip was saved to this phone instead.', 7000); } }
+    } else { download(z); await markSent(z); say('Saved to this phone\'s downloads. Attach it to an email or message.', 7000); }
+  };
+  $('save').onclick = async () => { const z = await zipNow(false); if (!z) return; download(z); await markSent(z); say('Saved to this phone\'s downloads.'); };
+  let clearArmed = false;
+  $('clear').onclick = async () => { if (!clearArmed) { clearArmed = true; $('clear').textContent = 'Tap again to remove them for good'; setTimeout(() => { clearArmed = false; $('clear').textContent = 'Remove sent photos from this phone'; }, 5000); return; }
+    clearArmed = false; $('clear').textContent = 'Remove sent photos from this phone'; for (const r of await store.all()) if (r.sent) await store.del(r.id); render(); say('Sent photos removed from this phone.'); };
+
+  (async () => {
+    db = await openDb(); if (!db) say('This browser will not keep photos after the page closes (private mode?). Send before you close it.', 9000);
+    $('ver').textContent = 'Field Capture ' + VERSION + (location.protocol === 'https:' || location.hostname === 'localhost' ? '' : ' · location needs the https address');
+    paintRecent(); paintShot(); paintLoc(); await render();
+    if (ls.get('loc', null) === 1) startLoc();
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+  })();
+})();
+</script>
+</body>
+</html>
